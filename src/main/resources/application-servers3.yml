@@ -1,0 +1,12 @@
+spring:
+  config:
+    activate:
+      on-profile: servers3
+    import: "optional:configserver:http://10.1.101.192:9500/"
+  cloud:
+    config:
+      name: storage
+      profile: s3
+
+encrypt:
+  key: EjelT7fFw6T4LHQEuwtU

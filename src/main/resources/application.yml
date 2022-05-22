@@ -1,0 +1,8 @@
+spring:
+  profiles:
+    active: locals3
+
+cloud:
+  aws:
+    stack:
+      auto: false

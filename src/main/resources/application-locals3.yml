@@ -1,0 +1,12 @@
+spring:
+  config:
+    activate:
+      on-profile: locals3
+    import: "optional:configserver:http://localhost:9500/"
+  cloud:
+    config:
+      name: storage
+      profile: s3
+
+encrypt:
+  key: EjelT7fFw6T4LHQEuwtU

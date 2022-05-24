@@ -1,8 +1,8 @@
 package team.bakkas.withmarketimageserver.controller
 
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
-import team.bakkas.withmarketimageserver.entity.AwsS3
 import team.bakkas.withmarketimageserver.service.AwsS3Service
 
 /** AWS S3에 관한 service들에 대한 controller class
@@ -13,13 +13,19 @@ import team.bakkas.withmarketimageserver.service.AwsS3Service
 class AwsS3Controller(
     private val awsS3Service: AwsS3Service
 ) {
-    @PostMapping("/file-upload")
-    fun upload(@RequestPart("file") multipartFile: MultipartFile): AwsS3 = awsS3Service.upload(multipartFile, "images")
 
-    @DeleteMapping("/file-delete")
-    fun remove(key: String, path: String): Unit {
-        val awsS3 = AwsS3(key, path)
+    @GetMapping("/image-url")
+    fun getImageUrl(@RequestParam(name = "name") fileName: String) = awsS3Service.getImageUrl(fileName)
 
-        awsS3Service.remove(awsS3)
+    @PostMapping("/image-upload")
+    fun uploadImage(@RequestPart multipartFile: List<MultipartFile>): ResponseEntity<List<String>> {
+        return ResponseEntity.ok(awsS3Service.uploadImages(multipartFile))
+    }
+
+    @DeleteMapping("/image-delete")
+    fun deleteImage(@RequestParam(name = "name") fileName: String): ResponseEntity<String> {
+        awsS3Service.deleteImage(fileName)
+
+        return ResponseEntity.ok("Success to delete $fileName")
     }
 }

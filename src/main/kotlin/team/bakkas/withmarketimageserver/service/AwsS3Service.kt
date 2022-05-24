@@ -1,17 +1,13 @@
 package team.bakkas.withmarketimageserver.service
 
 import com.amazonaws.services.s3.AmazonS3
-import com.amazonaws.services.s3.model.AmazonS3Exception
-import com.amazonaws.services.s3.model.CannedAccessControlList
-import com.amazonaws.services.s3.model.PutObjectRequest
+import com.amazonaws.services.s3.model.*
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
-import team.bakkas.withmarketimageserver.entity.AwsS3
-import java.io.File
-import java.io.FileOutputStream
+import org.springframework.web.server.ResponseStatusException
 import java.io.IOException
-import java.lang.IllegalArgumentException
 import java.util.*
 
 /** 계정과 연동된 Amazon S3와 관련된 서비스를 제공하는 클래스
@@ -27,89 +23,81 @@ class AwsS3Service(
     private val bucket: String
 ) {
 
-    /** multipartFile로 날아온 request file을 시스템 내부의 file로 변환시켜서 upload한 뒤, 업로드 정보를 반환하는 메소드
-     * @param multipartFile http request multipartFile
-     * @param dirName directory name
+    /** 이미지를 업로드하는 메소드
+     * @param multipartFiles request multipart로 날아오는 이미지 데이터들
+     * @return list of fileName
      */
-    fun upload(multipartFile: MultipartFile, dirName: String): AwsS3 {
-        val file = convertMultipartFileToFile(multipartFile) ?: throw IllegalArgumentException("MultipartFile -> FIle convert Exception")
+    fun uploadImages(multipartFiles: List<MultipartFile>): List<String> {
+        val fileNameList = mutableListOf<String>()
 
-        return upload(file, dirName)
-    }
-
-    /** key 정보와 path가 담긴 awsS3 객체를 파라미터로 받아서, 해당하는 파일을 S3 Storage에서 삭제하는 메소드
-     * @param awsS3 key, poth가 담긴 객체
-     */
-    fun remove(awsS3: AwsS3): Unit {
-        if(!amazonS3.doesObjectExist(bucket, awsS3.key))
-            throw AmazonS3Exception("Object " + awsS3.key + " does not exist!")
-
-        amazonS3.deleteObject(bucket, awsS3.key)
-    }
-
-    /** 파일을 AWS S3 상에 업로드시키는 메소드. 아래에 정의된 메소드들을 활용한다.
-     * @param file 저장하고자하는 파일
-     * @param dirName 저장하고자하는 디렉토리의 이름
-     */
-    private fun upload(file: File, dirName: String): AwsS3 {
-        val key = randomFileName(file, dirName)
-        val path = putS3(file, key) // key값을 이용해서 파일을 등록하고, 해당 url을 저장한다
-        removeFile(file)
-
-        return AwsS3(key, path)
-    }
-
-    /** 파일 이름을 랜덤으로 지정하는 메소드
-     * @param file 올리고자하는 파일
-     * @param dirName 디렉토리의 이름
-     * @return 해당 파일에 대응하는 key값 (generated file name)
-     */
-    private fun randomFileName(file: File, dirName: String): String = dirName + "/" + UUID.randomUUID() + file.name
-
-    /** Amazon S3로부터 해당 파일의 url을 가져오는 메소드
-     * @param bucket 연동 계정에 등록되어있는 버킷의 이름
-     * @param fileName 파일을 가져오기위한 key값 (random generated file name)
-     * @return url of file registered at Amazon S3
-     */
-    private fun getS3(bucket: String, fileName: String): String = amazonS3.getUrl(bucket, fileName).toString()
-
-    /** Amazon S3에 파일을 집어넣는 메소드
-     * @param uploadFile 업로드하고자 하는 파일
-     * @param fileName 파일의 이름. S3에는 random으로 지정된 이름으로 넣어서 파일 이름을 고유하게 만든다
-     * @return url of file registered at Amazon S3
-     */
-    private fun putS3(uploadFile: File, fileName: String): String {
-        amazonS3.putObject(PutObjectRequest(bucket, fileName, uploadFile)
-            .withCannedAcl(CannedAccessControlList.PublicRead))
-
-        return getS3(bucket, fileName)
-    }
-
-    /** 서버에 캐싱된 파일을 제거해버리는 메소드. S3에 업로드가 완료되는 즉시 실행해야하는 메소드
-     * @param file 업로드하고자하는 파일
-     */
-    private fun removeFile(file: File): Unit {
-        file.delete()
-    }
-
-    /** request에 실린 multipartFile을 system 상에 올린 뒤, 해당하는 file을 리턴해주는 메소드
-     * @param multipartFile http request로 전달된 multipart File
-     * @return file nullable File
-     */
-    private fun convertMultipartFileToFile(multipartFile: MultipartFile): File? {
-        val file = File(System.getProperty("user.dir") + "/" + multipartFile.originalFilename)
-
-        if (file.createNewFile()) {
-            try {
-                val fos = FileOutputStream(file)
-                fos.write(multipartFile.bytes)
-            } catch (e: IOException) {
-                throw IOException()
+        multipartFiles.forEach { file ->
+            val fileName: String = createRandomFileName(file.originalFilename!!)
+            val objectMetadata = ObjectMetadata()
+            with(objectMetadata) {
+                this.contentLength = file.size
+                this.contentType = file.contentType
             }
 
-            return file
+            putS3(file, fileName, objectMetadata)
+
+            fileNameList.add(fileName)
         }
 
-        return null
+        return fileNameList
+    }
+
+    /** fileName에 해당하는 image의 url을 반환하는 메소드
+     * @param fileName 파일의 이름
+     * @return url of image file
+     * @throws AmazonS3Exception
+     */
+    fun getImageUrl(fileName: String): String {
+        if(amazonS3.doesObjectExist(bucket, fileName))
+            return "https://$bucket.s3.ap-northeast-2.amazonaws.com/$fileName"
+        else
+            throw AmazonS3Exception("file $fileName does not exist!")
+    }
+
+    /** fileName에 대응하는 Amazon S3에 저장된 이미지를 삭제시키는 메소드
+     * @param fileName 파일의 이름
+     */
+    fun deleteImage(fileName: String) {
+        amazonS3.deleteObject(DeleteObjectRequest(bucket, fileName))
+    }
+
+    /** UUID를 기반으로 랜덤한 이미지의 이름을 지정하는 메소드
+     * @param fileName 파일의 이름
+     * @return random name of image file
+     */
+    private fun createRandomFileName(fileName: String): String = UUID.randomUUID().toString() + getFileExtension(fileName)
+
+    /** 파일의 확장자를 반환하는 메소드
+     * @param fileName 파일의 이름
+     * @return 파일의 확장자 string
+     * @throws ResponseStatusException
+     */
+    private fun getFileExtension(fileName: String): String {
+        try {
+            return fileName.substring(fileName.lastIndexOf("."))
+        } catch (e: StringIndexOutOfBoundsException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 형식의 파일($fileName) 입니다.")
+        }
+    }
+
+    /** inputStream을 이용해서 이미지 파일을 Amazon S3 상에 업로드시키는 메소드
+     * @param file multipartFile
+     * @param fileName 파일의 이름
+     * @param objectMetadata file의 meta-data (content-type, content-length)
+     * @throws ResponseStatusException
+     */
+    private fun putS3(file: MultipartFile, fileName: String, objectMetadata: ObjectMetadata): Unit {
+        try {
+            val inputStream = file.inputStream
+
+            amazonS3.putObject(PutObjectRequest(bucket, fileName, inputStream, objectMetadata)
+                .withCannedAcl(CannedAccessControlList.PublicRead))
+        } catch (e: IOException) {
+            throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 업로드에 실패했습니다.")
+        }
     }
 }

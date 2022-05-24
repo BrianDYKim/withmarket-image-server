@@ -1,6 +1,7 @@
 package team.bakkas.withmarketimageserver.service
 
 import com.amazonaws.services.s3.AmazonS3
+import com.amazonaws.services.s3.model.AmazonS3Exception
 import com.amazonaws.services.s3.model.CannedAccessControlList
 import com.amazonaws.services.s3.model.PutObjectRequest
 import org.springframework.beans.factory.annotation.Value
@@ -26,11 +27,24 @@ class AwsS3Service(
     private val bucket: String
 ) {
 
-    // TODO 주석 달기, 예외처리 세분화
+    /** multipartFile로 날아온 request file을 시스템 내부의 file로 변환시켜서 upload한 뒤, 업로드 정보를 반환하는 메소드
+     * @param multipartFile http request multipartFile
+     * @param dirName directory name
+     */
     fun upload(multipartFile: MultipartFile, dirName: String): AwsS3 {
         val file = convertMultipartFileToFile(multipartFile) ?: throw IllegalArgumentException("MultipartFile -> FIle convert Exception")
 
         return upload(file, dirName)
+    }
+
+    /** key 정보와 path가 담긴 awsS3 객체를 파라미터로 받아서, 해당하는 파일을 S3 Storage에서 삭제하는 메소드
+     * @param awsS3 key, poth가 담긴 객체
+     */
+    fun remove(awsS3: AwsS3): Unit {
+        if(!amazonS3.doesObjectExist(bucket, awsS3.key))
+            throw AmazonS3Exception("Object " + awsS3.key + " does not exist!")
+
+        amazonS3.deleteObject(bucket, awsS3.key)
     }
 
     /** 파일을 AWS S3 상에 업로드시키는 메소드. 아래에 정의된 메소드들을 활용한다.

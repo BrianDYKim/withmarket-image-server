@@ -14,15 +14,15 @@ class AwsS3Controller(
     private val awsS3Service: AwsS3Service
 ) {
 
-    @GetMapping("/image-url")
+    @GetMapping("/image/url")
     fun getImageUrl(@RequestParam(name = "name") fileName: String) = awsS3Service.getImageUrl(fileName)
 
-    @PostMapping("/image-upload")
+    @PostMapping("/image")
     fun uploadImage(@RequestPart multipartFile: List<MultipartFile>): ResponseEntity<List<String>> {
         return ResponseEntity.ok(awsS3Service.uploadImages(multipartFile))
     }
 
-    @DeleteMapping("/image-delete")
+    @DeleteMapping("/image")
     fun deleteImage(@RequestParam(name = "name") fileName: String): ResponseEntity<String> {
         awsS3Service.deleteImage(fileName)
 

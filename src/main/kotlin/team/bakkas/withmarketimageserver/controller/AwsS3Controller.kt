@@ -9,14 +9,17 @@ import team.bakkas.withmarketimageserver.service.AwsS3Service
  * @param awsS3Service AWS S3의 비지니스 로직을 구현한 service layer의 class
  */
 @RestController
-@RequestMapping("/v1/s3")
+@RequestMapping("/api/v1")
 class AwsS3Controller(
     private val awsS3Service: AwsS3Service
 ) {
 
-    @GetMapping("/image/url")
+    @GetMapping("/image")
     fun getImageUrl(@RequestParam(name = "name") fileName: String) = awsS3Service.getImageUrl(fileName)
 
+    /** multipart file을 받아서 해당 file을 업로드 후 주소를 반환해주는 메소드
+     * @param multipartFile
+     */
     @PostMapping("/image")
     fun uploadImage(@RequestPart multipartFile: List<MultipartFile>): ResponseEntity<List<String>> {
         return ResponseEntity.ok(awsS3Service.uploadImages(multipartFile))

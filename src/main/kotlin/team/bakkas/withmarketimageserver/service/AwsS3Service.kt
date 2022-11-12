@@ -43,7 +43,7 @@ class AwsS3Service(
             fileNameList.add(fileName)
         }
 
-        return fileNameList
+        return fileNameList.map { getImageUrl(it) }
     }
 
     /** fileName에 해당하는 image의 url을 반환하는 메소드
